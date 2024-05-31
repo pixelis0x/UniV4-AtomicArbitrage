@@ -10,32 +10,28 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
 
-contract Counter is BaseHook {
+contract AtomicArbHook is BaseHook {
     using PoolIdLibrary for PoolKey;
 
-    // NOTE: ---------------------------------------------------------
-    // state variables should typically be unique to a pool
-    // a single hook contract should be able to service multiple pools
-    // ---------------------------------------------------------------
+    uint128 public constant MIN_FEE = 3000; // default fee is 0.3%
+    address public atomicArbAddress;
 
-    mapping(PoolId => uint256 count) public beforeSwapCount;
-    mapping(PoolId => uint256 count) public afterSwapCount;
-
-    mapping(PoolId => uint256 count) public beforeAddLiquidityCount;
-    mapping(PoolId => uint256 count) public beforeRemoveLiquidityCount;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
+    function afterInitialize(PoolKey calldata key, bytes calldata) external override {
+        atomicArbAddress = abi.decode(calldata, (address));
+    }
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: false,
-            afterInitialize: false,
-            beforeAddLiquidity: true,
+            afterInitialize: true,
+            beforeAddLiquidity: false,
             afterAddLiquidity: false,
-            beforeRemoveLiquidity: true,
+            beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
             beforeSwap: true,
-            afterSwap: true,
+            afterSwap: false,
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
@@ -54,8 +50,11 @@ contract Counter is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        beforeSwapCount[key.toId()]++;
-        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        uint24 _currentFee = msg.sender == atomicArbAddress ? 0 : MIN_FEE;
+        uint256 overrideFee = _currentFee | uint256(LPFeeLibrary.OVERRIDE_FEE_FLAG);
+
+        
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, uint24(_currentFee));
     }
 
     function afterSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, BalanceDelta, bytes calldata)
@@ -65,25 +64,5 @@ contract Counter is BaseHook {
     {
         afterSwapCount[key.toId()]++;
         return (BaseHook.afterSwap.selector, 0);
-    }
-
-    function beforeAddLiquidity(
-        address,
-        PoolKey calldata key,
-        IPoolManager.ModifyLiquidityParams calldata,
-        bytes calldata
-    ) external override returns (bytes4) {
-        beforeAddLiquidityCount[key.toId()]++;
-        return BaseHook.beforeAddLiquidity.selector;
-    }
-
-    function beforeRemoveLiquidity(
-        address,
-        PoolKey calldata key,
-        IPoolManager.ModifyLiquidityParams calldata,
-        bytes calldata
-    ) external override returns (bytes4) {
-        beforeRemoveLiquidityCount[key.toId()]++;
-        return BaseHook.beforeRemoveLiquidity.selector;
     }
 }
