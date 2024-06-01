@@ -8,7 +8,6 @@ import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolDonateTest} from "v4-core/src/test/PoolDonateTest.sol";
-import {Counter} from "../src/Counter.sol";
 import {HookMiner} from "../test/utils/HookMiner.sol";
 
 contract CounterScript is Script {
@@ -25,12 +24,12 @@ contract CounterScript is Script {
         );
 
         // Mine a salt that will produce a hook address with the correct flags
-        (address hookAddress, bytes32 salt) =
-            HookMiner.find(CREATE2_DEPLOYER, flags, type(Counter).creationCode, abi.encode(address(GOERLI_POOLMANAGER)));
+        // (address hookAddress, bytes32 salt) =
+        //     HookMiner.find(CREATE2_DEPLOYER, flags, type(Counter).creationCode, abi.encode(address(GOERLI_POOLMANAGER)));
 
         // Deploy the hook using CREATE2
         vm.broadcast();
-        Counter counter = new Counter{salt: salt}(IPoolManager(address(GOERLI_POOLMANAGER)));
-        require(address(counter) == hookAddress, "CounterScript: hook address mismatch");
+        // Counter counter = new Counter{salt: salt}(IPoolManager(address(GOERLI_POOLMANAGER)));
+        // require(address(counter) == hookAddress, "CounterScript: hook address mismatch");
     }
 }
