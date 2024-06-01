@@ -44,9 +44,9 @@ contract AtomicArbTest is Test, Deployers {
 
         // Create the pool
         bytes memory afterInitializeParams = abi.encode(address(atomicArbRouter), 3000, 500);
-        key = PoolKey(currency0, currency1, 3000, 60, IHooks(address(atomicArbHook)));
-        atomicArbPoolId = key.toId();
-        manager.initialize(key, SQRT_PRICE_1_1, afterInitializeParams);
+        atomicArbPoolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(address(atomicArbHook)));
+        atomicArbPoolId = atomicArbPoolKey.toId();
+        manager.initialize(atomicArbPoolKey, SQRT_PRICE_1_1, afterInitializeParams);
 
         // Create hookless pool
         hooklessPoolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(address(0x0)));
@@ -54,12 +54,14 @@ contract AtomicArbTest is Test, Deployers {
         manager.initialize(hooklessPoolKey, SQRT_PRICE_1_1, ZERO_BYTES);
 
         // Provide liquidity to the Arb pool
-        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-60, 60, 10 ether, 0), ZERO_BYTES);
         modifyLiquidityRouter.modifyLiquidity(
-            key, IPoolManager.ModifyLiquidityParams(-120, 120, 10 ether, 0), ZERO_BYTES
+            atomicArbPoolKey, IPoolManager.ModifyLiquidityParams(-60, 60, 10 ether, 0), ZERO_BYTES
         );
         modifyLiquidityRouter.modifyLiquidity(
-            key,
+            atomicArbPoolKey, IPoolManager.ModifyLiquidityParams(-120, 120, 10 ether, 0), ZERO_BYTES
+        );
+        modifyLiquidityRouter.modifyLiquidity(
+            atomicArbPoolKey,
             IPoolManager.ModifyLiquidityParams(TickMath.minUsableTick(60), TickMath.maxUsableTick(60), 10 ether, 0),
             ZERO_BYTES
         );
@@ -82,12 +84,27 @@ contract AtomicArbTest is Test, Deployers {
         bool zeroForOne = true;
 
         // Swap in the hookless pool
-        BalanceDelta delta0 = swap(hooklessPoolKey, zeroForOne, 1 ether, ZERO_BYTES);
+        BalanceDelta delta0 = swap(hooklessPoolKey, zeroForOne, -1 ether, ZERO_BYTES);
 
         // Swap in the Arb pool
-        BalanceDelta delta1 = swap(key, zeroForOne, 1 ether, ZERO_BYTES);
+        BalanceDelta delta1 = swap(atomicArbPoolKey, zeroForOne, -1 ether, ZERO_BYTES);
 
         assertEq(delta0.amount0(), delta1.amount0());
         assertEq(delta0.amount1(), delta1.amount1());
+    }
+
+    function testArbSwapTakesLessFee() public {
+        bool zeroForOne = true;
+
+        // manipulate the price of the hookless pool to move it for 0.5%
+        swap(hooklessPoolKey, zeroForOne, 2 ether, ZERO_BYTES);
+
+        // ERC20 balance before swap
+        uint256 balanceBefore = currency0.balanceOf(address(this));
+        atomicArbRouter.arbSwap(atomicArbPoolKey, hooklessPoolKey, zeroForOne, -1 ether, ZERO_BYTES, ZERO_BYTES);
+
+        uint256 balanceAfter = currency0.balanceOf(address(this));
+
+        assertGt(balanceAfter, balanceBefore);
     }
 }
