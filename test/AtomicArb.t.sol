@@ -43,13 +43,13 @@ contract AtomicArbTest is Test, Deployers {
         require(address(atomicArbHook) == arbHookAddress, "AtomicArbHook: hook address mismatch");
 
         // Create the pool
-        bytes memory afterInitializeParams = abi.encode(address(atomicArbRouter), 3000, 500);
-        atomicArbPoolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(address(atomicArbHook)));
+        bytes memory afterInitializeParams = abi.encode(address(atomicArbRouter), 10000, 500);
+        atomicArbPoolKey = PoolKey(currency0, currency1, 10000, 60, IHooks(address(atomicArbHook)));
         atomicArbPoolId = atomicArbPoolKey.toId();
         manager.initialize(atomicArbPoolKey, SQRT_PRICE_1_1, afterInitializeParams);
 
         // Create hookless pool
-        hooklessPoolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(address(0x0)));
+        hooklessPoolKey = PoolKey(currency0, currency1, 10000, 60, IHooks(address(0x0)));
         hooklessPoolId = hooklessPoolKey.toId();
         manager.initialize(hooklessPoolKey, SQRT_PRICE_1_1, ZERO_BYTES);
 
@@ -100,11 +100,16 @@ contract AtomicArbTest is Test, Deployers {
         swap(hooklessPoolKey, zeroForOne, 2 ether, ZERO_BYTES);
 
         // ERC20 balance before swap
-        uint256 balanceBefore = currency0.balanceOf(address(this));
+        uint256 balance0Before = currency0.balanceOf(address(this));
+        uint256 balance1Before = currency1.balanceOf(address(this));
         atomicArbRouter.arbSwap(atomicArbPoolKey, hooklessPoolKey, zeroForOne, -1 ether, ZERO_BYTES, ZERO_BYTES);
 
-        uint256 balanceAfter = currency0.balanceOf(address(this));
+        uint256 balance0After = currency0.balanceOf(address(this));
+        uint256 balance1After = currency1.balanceOf(address(this));
 
-        assertGt(balanceAfter, balanceBefore);
+        // profits are made
+        assertGt(balance0After, balance0Before);
+        // sending token is not sent since arbitrage is executed with flash accounting
+        assertEq(balance1Before, balance1After);
     }
 }

@@ -111,7 +111,6 @@ contract AtomicArbRouter is PoolTestBase {
         // perform 2nd swap with output of 1st swap
         int256 amountUnspecified = data.zeroForOne ? -delta0.amount1() : -delta0.amount0();
 
-        console.logInt(amountUnspecified);
         manager.swap(data.key1, IPoolManager.SwapParams(!data.zeroForOne, amountUnspecified, limit1), data.hookData1);
 
         (,, int256 deltaAfter0) = _fetchBalances(data.key0.currency0, data.sender, address(this));
@@ -127,14 +126,9 @@ contract AtomicArbRouter is PoolTestBase {
             require(deltaAfter0 == 0, "intermediate arbitrage asset should not be left");
         }
 
-        console.logInt(deltaAfter0);
-        console.logInt(deltaAfter1);
-
         // estimate swap profit
         uint256 profit = data.zeroForOne ? uint256(deltaAfter0) : uint256(deltaAfter1);
-        console.log(profit);
         uint256 poolDonateAmount = profit * 9 / 10;
-        console.log(poolDonateAmount);
 
         Currency donateCurrency = data.zeroForOne ? data.key1.currency0 : data.key1.currency1;
 
