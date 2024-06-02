@@ -1,4 +1,4 @@
-# AtomicArb
+# TheEqualizer
 ### ** Atomic arbitrage router and hook for Uniswap v4 🦄**
 
 ---
