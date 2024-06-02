@@ -42,20 +42,6 @@ contract AtomicArbRouter is PoolTestBase {
         bool settleUsingBurn;
     }
 
-    // function swap(
-    //     PoolKey memory key,
-    //     IPoolManager.SwapParams memory params,
-    //     TestSettings memory testSettings,
-    //     bytes memory hookData
-    // ) external payable returns (BalanceDelta delta) {
-    //     delta = abi.decode(
-    //         manager.unlock(abi.encode(CallbackData(msg.sender, testSettings, key, params, hookData))), (BalanceDelta)
-    //     );
-
-    //     uint256 ethBalance = address(this).balance;
-    //     if (ethBalance > 0) CurrencyLibrary.NATIVE.transfer(msg.sender, ethBalance);
-    // }
-
     // function performing arbitrage between two pools
     // donates 90% of the profit to the second pool
     function arbSwap(

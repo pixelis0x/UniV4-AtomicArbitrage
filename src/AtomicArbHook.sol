@@ -21,11 +21,6 @@ contract AtomicArbHook is BaseHook {
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
-    // function afterInitialize(address, PoolKey calldata, uint160, int24, bytes calldata)
-    //     external
-    //     virtual
-    //     returns (bytes4)
-    // {
     function afterInitialize(address, PoolKey calldata, uint160, int24, bytes calldata params)
         external
         override
