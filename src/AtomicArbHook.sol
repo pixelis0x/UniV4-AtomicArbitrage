@@ -51,12 +51,12 @@ contract AtomicArbHook is BaseHook {
     }
 
     // Hook logic can be copied to other hooks conracts to be compatible wiht AtomicArbRouter
-    function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
+    function beforeSwap(address caller, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        uint24 _currentFee = msg.sender == atomicArbRouterAddress ? arbFee : defaultFee;
+        uint24 _currentFee = atomicArbRouterAddress == caller ? arbFee : defaultFee;
         uint256 overrideFee = _currentFee | uint256(LPFeeLibrary.OVERRIDE_FEE_FLAG);
 
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, uint24(overrideFee));

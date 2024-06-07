@@ -78,11 +78,13 @@ contract AtomicArbRouter is PoolTestBase {
 
         CallbackData memory data = abi.decode(rawData, (CallbackData));
 
-        (,, int256 deltaBefore0) = _fetchBalances(data.key0.currency0, data.sender, address(this));
-        (,, int256 deltaBefore1) = _fetchBalances(data.key0.currency1, data.sender, address(this));
+        {
+            (,, int256 deltaBefore0) = _fetchBalances(data.key0.currency0, data.sender, address(this));
+            (,, int256 deltaBefore1) = _fetchBalances(data.key0.currency1, data.sender, address(this));
 
-        require(deltaBefore0 == 0, "deltaBefore0 is not equal to 0");
-        require(deltaBefore1 == 0, "deltaBefore1 is not equal to 0");
+            require(deltaBefore0 == 0, "deltaBefore0 is not equal to 0");
+            require(deltaBefore1 == 0, "deltaBefore1 is not equal to 0");
+        }
 
         (uint160 limit1, uint160 limit0) =
             data.zeroForOne ? (MAX_PRICE_LIMIT, MIN_PRICE_LIMIT) : (MIN_PRICE_LIMIT, MAX_PRICE_LIMIT);
@@ -97,11 +99,12 @@ contract AtomicArbRouter is PoolTestBase {
         // perform 2nd swap with output of 1st swap
         int256 amountUnspecified = data.zeroForOne ? -delta0.amount1() : -delta0.amount0();
 
-        manager.swap(data.key1, IPoolManager.SwapParams(!data.zeroForOne, amountUnspecified, limit1), data.hookData1);
+        manager.swap(data.key1, IPoolManager.SwapParams(!data.zeroForOne, amountUnspecified, limit1), ZERO_BYTES);
 
         (,, int256 deltaAfter0) = _fetchBalances(data.key0.currency0, data.sender, address(this));
         (,, int256 deltaAfter1) = _fetchBalances(data.key0.currency1, data.sender, address(this));
 
+        // check if profit is positive and no intermediate arbitrage asset is left
         if (data.zeroForOne) {
             require(data.amountSpecified < 0, "amountSpecified should be negative");
             require(deltaAfter0 > 0, "noProfit");
@@ -113,26 +116,20 @@ contract AtomicArbRouter is PoolTestBase {
         }
 
         // estimate swap profit
-        uint256 profit = data.zeroForOne ? uint256(deltaAfter0) : uint256(deltaAfter1);
+        uint256 profit = uint256(data.zeroForOne ? deltaAfter0 : deltaAfter1);
+        // TODO: decide perfect ratio by running simulations and maybe use a dynamic ratio
         uint256 poolDonateAmount = profit * 9 / 10;
 
         Currency donateCurrency = data.zeroForOne ? data.key1.currency0 : data.key1.currency1;
 
-        // donate 90% of the profit to the second pool
+        // TODO: fix donate incentives only in LPs that are in range at this particular moment which is not fair
         if (data.zeroForOne) {
             manager.donate(data.key1, poolDonateAmount, 0, ZERO_BYTES);
         } else {
             manager.donate(data.key1, 0, poolDonateAmount, ZERO_BYTES);
         }
 
-        donateCurrency.take(manager, data.sender, profit - poolDonateAmount, data.testSettings.settleUsingBurn);
-
-        // if (deltaAfter0 > 0) {
-        //     data.key.currency0.take(manager, data.sender, uint256(deltaAfter0), data.testSettings.takeClaims);
-        // }
-        // if (deltaAfter1 > 0) {
-        //     data.key.currency1.take(manager, data.sender, uint256(deltaAfter1), data.testSettings.takeClaims);
-        // }
+        donateCurrency.take(manager, data.sender, profit - poolDonateAmount, data.testSettings.takeClaims);
 
         return abi.encode(toBalanceDelta(int128(deltaAfter0), int128(deltaAfter1)));
     }

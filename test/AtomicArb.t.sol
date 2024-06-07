@@ -14,6 +14,9 @@ import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {Pool} from "v4-core/src/libraries/Pool.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
+import {Quoter} from "v4-periphery/lens/Quoter.sol";
+import {IQuoter} from "v4-periphery/interfaces/IQuoter.sol";
 import {HookMiner} from "./utils/HookMiner.sol";
 import {AtomicArbHook} from "../src/AtomicArbHook.sol";
 import {AtomicArbRouter} from "../src/AtomicArbRouter.sol";
@@ -30,18 +33,35 @@ contract AtomicArbTest is Test, Deployers {
     PoolKey hooklessPoolKey;
     AtomicArbRouter atomicArbRouter;
 
-    // devaites price roughly for 1.3%
+    // devaites price roughly for 10%
     function manipulatePriceOfHooklessPool() private {
+        uint256 sendAmount = 1 ether;
         // hookless price before
         (uint160 sqrtPriceX96,,,) = manager.getSlot0(hooklessPoolId);
-        // manipulate the price of the hookless pool to move it for 0.5%
-        swap(hooklessPoolKey, true, 2 ether, ZERO_BYTES);
+        // manipulate the price of the hookless pool to move it in the opposite direction
+        swap(hooklessPoolKey, false, -1.3 ether, ZERO_BYTES);
 
         // hookless price after
         (uint160 sqrtPriceX96After,,,) = manager.getSlot0(hooklessPoolId);
         // relative price change in percentage
-        uint256 priceChange = getPriceFromX96(sqrtPriceX96) * 1000 / getPriceFromX96(sqrtPriceX96After);
-        console.log("price change: %d", priceChange);
+        uint256 priceChange =
+            (getPriceFromX96(sqrtPriceX96After) - getPriceFromX96(sqrtPriceX96)) * 100 / getPriceFromX96(sqrtPriceX96);
+        console.log("price changed by: ", priceChange);
+
+        // check swap output for 1 eth on both pools with quoter
+        Quoter quoter = new Quoter(address(manager));
+        (int128[] memory deltaAmounts0,,) = quoter.quoteExactInputSingle(
+            IQuoter.QuoteExactSingleParams(hooklessPoolKey, true, address(this), 1 ether, MIN_PRICE_LIMIT, ZERO_BYTES)
+        );
+
+        (int128[] memory deltaAmounts1,,) = quoter.quoteExactInputSingle(
+            IQuoter.QuoteExactSingleParams(
+                atomicArbPoolKey, false, address(this), uint128(-deltaAmounts0[1]), MAX_PRICE_LIMIT, ZERO_BYTES
+            )
+        );
+
+        console2.log("Quoted hookless output: ", -int256(deltaAmounts0[1]));
+        console2.log("Quoted arbHook output without discount: ", -int256(deltaAmounts1[0]));
     }
 
     function getPriceFromX96(uint160 sqrtPriceX96) public pure returns (uint256) {
@@ -65,7 +85,8 @@ contract AtomicArbTest is Test, Deployers {
 
         // Create the pool
         bytes memory afterInitializeParams = abi.encode(address(atomicArbRouter), 10000, 500);
-        atomicArbPoolKey = PoolKey(currency0, currency1, 10000, 100, IHooks(address(atomicArbHook)));
+        atomicArbPoolKey =
+            PoolKey(currency0, currency1, LPFeeLibrary.DYNAMIC_FEE_FLAG, 100, IHooks(address(atomicArbHook)));
         atomicArbPoolId = atomicArbPoolKey.toId();
         manager.initialize(atomicArbPoolKey, SQRT_PRICE_1_1, afterInitializeParams);
 
@@ -117,14 +138,13 @@ contract AtomicArbTest is Test, Deployers {
     function testArbSwapTakesLessFee() public {
         bool zeroForOne = true;
 
-        // manipulate the price of the hookless pool to move it for 0.5%
         manipulatePriceOfHooklessPool();
 
         // ERC20 balance before swap
         uint256 balance0Before = currency0.balanceOf(address(this));
         uint256 balance1Before = currency1.balanceOf(address(this));
 
-        atomicArbRouter.arbSwap(atomicArbPoolKey, hooklessPoolKey, zeroForOne, -1 ether, ZERO_BYTES, ZERO_BYTES);
+        atomicArbRouter.arbSwap(hooklessPoolKey, atomicArbPoolKey, zeroForOne, -1 ether, ZERO_BYTES, ZERO_BYTES);
 
         // ERC20 balance after swap
         uint256 balance0After = currency0.balanceOf(address(this));
